@@ -1,0 +1,641 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/svg.dart';
+import 'package:intl/intl.dart';
+import 'package:path/path.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../Authtentication/otp_service.dart';
+import '../../../JsonModels/create_comp.dart';
+import '../../../JsonModels/users.dart';
+import '../../../constants/app_colors.dart';
+import '../../../constants/app_defaults.dart';
+import '../../../constants/app_icons.dart';
+import '../../../constants/app_images.dart';
+import '../../../routes/app_routes.dart';
+import '../../../supabase/supabase.dart';
+import '../../../try.dart';
+import '../utils/validators.dart';
+import '../verified_comp.dart';
+import 'package:http/http.dart' as http;
+
+/*
+
+Author: Sumit Sunil Dubey
+location: Thane
+link: https://sumit-portfolio-4mn0.onrender.com/
+
+*/
+class SearchCompkeyPage extends StatefulWidget {
+  final Users? userData;
+  const SearchCompkeyPage({super.key, this.userData});
+
+  @override
+  State<SearchCompkeyPage> createState() => _SearchCompkeyPageState();
+}
+
+class _SearchCompkeyPageState extends State<SearchCompkeyPage> {
+  late SupaBaseDatabaseHelper handler;
+  Future<List<CreateComp>>? notes;
+  final db = SupaBaseDatabaseHelper();
+
+  final title = TextEditingController();
+  final content = TextEditingController();
+  final keyword = TextEditingController();
+  final _key = GlobalKey<FormState>();
+  final OTPService _otpService = OTPService(); // Instantiate the OTP service
+
+  final name = TextEditingController();
+  final emailC = TextEditingController();
+  final phone = TextEditingController();
+  final aadhaar = TextEditingController();
+  final shopName = TextEditingController();
+  final compKey = TextEditingController();
+  final otpController = TextEditingController();
+  final verified = TextEditingController();
+
+  String? generatedOtp; // Store the generated OTP
+  bool isOtpVerified = false; // Track OTP verification status
+  bool isEmailValid = false; // Track email validity
+  bool isOtpValid = false; // Track OTP validity
+
+  void sendEmail(String email, String subject, String message, String toName) async {
+    var serviceId = 'service_bfwqbno',
+        templateId = 'template_6spyyhv',
+        userId = 'HTqVXzJ3HxAhX5v10';
+
+    var response = await http.post(
+      Uri.parse('https://api.emailjs.com/api/v1.0/email/send'),
+      headers: {
+        'origin': 'http://localhost',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'service_id': serviceId,
+        'user_id': userId,
+        'template_id': templateId,
+        'template_params': {
+          'name': toName,
+          'subject': subject,
+          'message': message,
+          'sender_email': email,
+        },
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      // print('Email sent successfully');
+      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+        const SnackBar(content: Text('OTP sent successfully')),
+      );
+    } else {
+      // print('Failed to send email: ${response.body}');
+      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+        const SnackBar(content: Text('Failed to send OTP. Check your email again')),
+      );
+    }
+  }
+
+  void _sendOtp() {
+    if (isEmailValid) {
+      generatedOtp = _otpService.generateOTP().toString(); // Convert OTP to String
+      sendEmail(
+        emailC.text.toString(),
+        "Verify Your Email",
+        "Your OTP for verifying email on Softrack for KeepVeda is $generatedOtp. The code will be valid until the next Resend of new OTP.",
+        "Dear Customer",
+      );
+    } else {
+      print('Email is not valid');
+      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+        const SnackBar(content: Text('Email is not valid')),
+      );
+    }
+  }
+
+  void _validateEmail() {
+    setState(() {
+      isEmailValid = Validators.email(emailC.text) == null;
+    });
+  }
+
+  String _status(String totalDays){
+    // String totalDays = widget.users!.usrNoOfDays;
+    String activeStatus = "";
+    List<String> parts = totalDays.split('/');
+    if (parts.length == 2) { // "90/active"
+      activeStatus = "${parts[1]}/0";   // "active"
+    } else if (parts.length == 3) { // "90/active/0"
+      activeStatus = "${parts[1]}/${parts[2]}";   // "active"
+    } else if (parts.length == 4) { // "06/90/active/02"
+      activeStatus = "${parts[2]}/${parts[3]}";   // "active/02"
+    } else {
+      activeStatus = '';
+    }
+    return activeStatus; // "active/0"
+  }
+
+  @override
+  void initState() {
+    handler = SupaBaseDatabaseHelper();
+    super.initState();
+  }
+
+  Future<List<CreateComp>> searchCompKey() {
+    return handler.searchCompKey(keyword.text, widget.userData!.usrUserName, widget.userData!.usrActive);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Search"),
+      ),
+      body: Column(
+        children: [
+          _SearchPageHeader(
+            searchController: keyword,
+            onSearchChanged: (value) {
+              setState(() {
+                notes = value.isNotEmpty ? searchCompKey() : null;
+              });
+            },
+          ),
+          Expanded(
+            child: notes == null
+                ? const Center(child: Text("Search Something"))
+                : FutureBuilder<List<CreateComp>>(
+              future: notes,
+              builder: (BuildContext context, AsyncSnapshot<List<CreateComp>> snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasData && snapshot.data!.isEmpty) {
+                  return const Center(child: Text("No data"));
+                } else if (snapshot.hasError) {
+                  return Center(child: Text(snapshot.error.toString()));
+                } else {
+                  final items = snapshot.data ?? <CreateComp>[];
+                  return ListView.builder(
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      String formattedDate;
+                      try {
+                        // formattedDate = DateFormat("dd/MM/yyyy").format(DateTime.parse(item.createdAt));
+                        formattedDate = DateFormat("dd/MM/yyyy").format(DateTime.parse(item.createdAt.split("/").length==2?item.createdAt.split("/")[0]:item.createdAt));
+                      } catch (e) {
+                        formattedDate = "Invalid date";
+                      }
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.pushNamed(
+                            context,
+                            AppRoutes.comp_detailsPage,
+                            arguments: item,
+                          );
+                        },
+                        child: CompKeyCard(
+                          customerName: item.usrName,
+                          shopName: item.usrShopName,
+                          email: item.usrEmail,
+                          phone: item.usrPhone,
+                          // username: widget.userData!.usrUserName,
+                          status: _status(item.usrNoOfDays),
+                          // username: widget.userData!.usrUserName,
+                          username: widget.userData!.usrActive,
+                          distributor: item.usrName,
+                          formattedDate: formattedDate,
+                          onEdit: () {
+                            setState(() {
+                              name.text = item.usrName;
+                              shopName.text = item.usrShopName;
+                              emailC.text = item.usrEmail;
+                              phone.text = item.usrPhone;
+                              aadhaar.text = item.usrAadharNo;
+                            });
+                            showDialog(
+                              context: context,
+                              builder: (context) {
+                                return AlertDialog(
+                                  actions: [
+                                    Row(
+                                      children: [
+                                        TextButton(
+                                          onPressed: () {
+                                            if (generatedOtp != null && generatedOtp!.trim() == otpController.text.trim()) {
+                                              // OTP is correct
+                                              db.updateCompKey(
+                                                name.text,
+                                                shopName.text,
+                                                emailC.text,
+                                                phone.text,
+                                                aadhaar.text,
+                                                item.usrId,
+                                                widget.userData!.usrUserName,
+                                              ).whenComplete(() {
+                                                setState(() {
+                                                  notes = searchCompKey();
+                                                });
+                                                Navigator.pop(context);
+                                              }).whenComplete(() {
+                                                showGeneralDialog(
+                                                  barrierLabel: 'Dialog',
+                                                  barrierDismissible: true,
+                                                  context: context,
+                                                  pageBuilder: (ctx, anim1, anim2) => VerifiedComp(username: widget.userData),
+                                                  transitionBuilder: (ctx, anim1, anim2, child) => ScaleTransition(
+                                                    scale: anim1,
+                                                    child: child,
+                                                  ),
+                                                );
+                                                setState(() {
+                                                  notes = searchCompKey();
+                                                });
+                                                Navigator.pop(context);
+                                              });
+                                            } else {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Invalid OTP')),
+                                              );
+                                            }
+                                          },
+                                          child: const Text("Update"),
+                                        ),
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.pop(context);
+                                          },
+                                          child: const Text("Cancel"),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  title: const Text("Update data"),
+                                  content: SingleChildScrollView(
+                                    child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const SizedBox(height: 8),
+                                      TextFormField(
+                                        controller: name,
+                                        validator: Validators.requiredWithFieldName('Name').call,
+                                        textInputAction: TextInputAction.next,
+                                        decoration: const InputDecoration(
+                                          label: Text("Name"),
+                                        ),
+                                      ),
+                                      const SizedBox(height: AppDefaults.padding),
+                                      const SizedBox(height: 8),
+                                      TextFormField(
+                                        controller: phone,
+                                        textInputAction: TextInputAction.next,
+                                        keyboardType: TextInputType.number,
+                                        validator: Validators.phone.call,
+                                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                        decoration: const InputDecoration(
+                                          label: Text("Phone"),
+                                        ),
+                                      ),
+                                      const SizedBox(height: AppDefaults.padding),
+                                      const SizedBox(height: 8),
+                                      TextFormField(
+                                        controller: shopName,
+                                        validator: Validators.requiredWithFieldName('Shop Name').call,
+                                        textInputAction: TextInputAction.next,
+                                        decoration: const InputDecoration(
+                                          label: Text("Shop Name"),
+                                        ),
+                                      ),
+                                      const SizedBox(height: AppDefaults.padding),
+                                      const SizedBox(height: 8),
+                                      TextFormField(
+                                        controller: aadhaar,
+                                        textInputAction: TextInputAction.next,
+                                        keyboardType: TextInputType.number,
+                                        validator: Validators.aadhaarNo.call,
+                                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                        decoration: const InputDecoration(
+                                          label: Text("Aadhaar No."),
+                                        ),
+                                      ),
+                                      const SizedBox(height: AppDefaults.padding),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: emailC,
+                                              validator: Validators.email.call,
+                                              textInputAction: TextInputAction.next,
+                                              onChanged: (value) => _validateEmail(),
+                                              decoration: const InputDecoration(
+                                                label: Text("Email"),
+                                              ),
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.send),
+                                            tooltip: "Send OTP",
+                                            onPressed: _sendOtp,
+                                            color: isEmailValid ? Colors.green : Colors.red,
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: AppDefaults.padding),
+                                      const SizedBox(height: 8),
+                                      TextFormField(
+                                        controller: otpController,
+                                        textInputAction: TextInputAction.next,
+                                        keyboardType: TextInputType.number,
+                                        validator: Validators.requiredWithFieldName("OTP").call,
+                                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                        decoration: const InputDecoration(
+                                          label: Text("OTP"),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          // onDelete: () {
+                          //   db.deleteNote(item.usrId, widget.userData!.usrUserName).whenComplete(() {
+                          //     setState(() {
+                          //       notes = searchCompKey();
+                          //     });
+                          //   });
+                          // },
+                          onDelete: () {
+                            showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return AlertDialog(
+                                  title: const Text("Delete Confirmation"),
+                                  content: const Text("Are you sure you want to delete this shop data?"),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.of(context).pop(); // Close the dialog
+                                      },
+                                      child: const Text("Cancel"),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                          db.deleteNote(item.usrId, widget.userData!.usrUserName).whenComplete(() {
+                                            setState(() {
+                                              notes = searchCompKey();
+                                            });
+                                          });
+                                        Navigator.of(context).pop(); // Close the dialog after deletion
+                                      },
+                                      child: const Text("Delete"),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  );
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CompKeyCard extends StatelessWidget {
+  final String customerName;
+  final String shopName;
+  final String email;
+  final String phone;
+  final String username;
+  final String distributor;
+  final String status;
+  final String formattedDate;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const CompKeyCard({super.key, 
+    required this.customerName,
+    required this.shopName,
+    required this.email,
+    required this.phone,
+    required this.username,
+    required this.status,
+    required this.distributor,
+    required this.formattedDate,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  Future<void> _launchUrl(String url) async {
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+        const SnackBar(content: Text('Could not open URL.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+      child: Card(
+        elevation: 10.0,
+        // color: Colors.white,
+        color: const Color(0xFFE8FFE0),
+        margin: const EdgeInsets.symmetric(vertical: 10.0),
+        // margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: status.split("/")[0] == "active"? Colors.green: Colors.red, // Set the border color to red
+                        width: 2.0,       // Set the border width
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: Transform.scale(
+                        scale: 0.8,
+                        child:
+                        // const SizedBox(
+                        //   width: 65,
+                        //   height: 65,
+                        //   child: NetworkImageWithLoader(AppImages.typicalDesktopLogo, fit: BoxFit.cover),
+                        // ),
+                        Image.asset(
+                          // 'images/typical_desktop.png',
+                          AppImages.typicalDesktopLogo,
+                          fit: BoxFit.cover,
+                          width: 65,
+                          height: 65,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 26.0),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          customerName,
+                          style: const TextStyle(fontSize: 20.0, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          'Shop: $shopName',
+                          style: TextStyle(fontSize: 14.0, color: Colors.grey[600]),
+                        ),
+                        const SizedBox(height: 3.0),
+                        Row(
+                          children: [
+                            const Icon(Icons.date_range_sharp, color: Colors.teal, size: 14),
+                            const SizedBox(width: 5.0),
+                            Text(formattedDate, style: const TextStyle(fontSize: 12)),
+                            const SizedBox(width: 16.0),
+                          ],
+                        ),
+                        // if (username == "typicalDeskAdmin")
+                        if (username.split("/")[1] == "administrator")
+                           Row(
+                            children: [
+                              const Tooltip(
+                                message: 'Distributor',
+                                child: Icon(Icons.person, color: Colors.teal, size: 16),
+                              ),
+                              const SizedBox(width: 5.0),
+                              Text(distributor, style: const TextStyle(fontSize: 13)),
+                              const SizedBox(width: 16.0),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    children: [
+                      BoxIcon(
+                        icons: Icons.edit,
+                        onPressed: onEdit,
+                      ),
+                      const SizedBox(height: 4.0),
+                      BoxIcon(
+                        icons: Icons.delete,
+                        onPressed: onDelete,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12.0),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  IconInfo(
+                    icon: Icons.call,
+                    label: 'Call',
+                    onPressed: () async {
+                      final url = 'tel:$phone';
+                      await _launchUrl(url);
+                    },
+                  ),
+                  IconInfo(
+                    icon: Icons.mail,
+                    label: 'Email',
+                    onPressed: () async {
+                      final url = 'mailto:$email';
+                      await _launchUrl(url);
+                    },
+                  ),
+                  IconInfo(
+                    icon: Icons.sms,
+                    label: 'SMS',
+                    onPressed: () async {
+                      final url = 'sms:$phone';
+                      await _launchUrl(url);
+                    },
+                  ),
+                  IconInfo(
+                    icon: Icons.maps_ugc_rounded,
+                    label: 'WhatsApp',
+                    onPressed: () async {
+                      final url = 'whatsapp://send?phone=$phone'; // Make sure the phone number includes the country code
+                      await _launchUrl(url);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchPageHeader extends StatelessWidget {
+  final TextEditingController searchController;
+  final ValueChanged<String>? onSearchChanged;
+
+  const _SearchPageHeader({
+    required this.searchController,
+    this.onSearchChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppDefaults.padding),
+      child: Row(
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                Form(
+                  child: TextFormField(
+                    controller: searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search',
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(AppDefaults.padding),
+                        child: SvgPicture.asset(
+                          AppIcons.search,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      prefixIconConstraints: const BoxConstraints(),
+                      contentPadding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    textInputAction: TextInputAction.search,
+                    autofocus: true,
+                    onChanged: onSearchChanged,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -1,0 +1,32 @@
+project name- Softrack
+language- flutter with dart
+device- android, ios, web
+Author- Sumit Sunil Dubey
+location: Thane
+link: https://sumit-portfolio-4mn0.onrender.com/
+
+to import something/extensions use -
+    1. flutter pub add ___
+    2. dart pub add ___
+
+file structures
+    1. for notes app
+       - assets, authentication, jsonmodel, SupaBase, views > 4 dart files
+    2. for upgrade
+       - components, constants, core, routes, view>dialogs doc
+
+functionalities
+    splash, login/signup, otp verification/forget password, main page(show company/user connected to our app),
+    add user(create company key), profile, payment page, expiry page(subscription expiry data),
+    notification page(add/push and view notification)
+
+features-
+   - for otp sending use url_launcher which helps to send static sms
+     methods are:
+        launch('tel:9146090984'); // calling
+        launch('sms:9146090984?body=hi this is sumit dubey'); //sms
+        launch('whatsapp://send?9146090984?body=hi this is sumit dubey'); //sms
+        launch('mailto:sd889506@gmail.com?subject=this is subject Title&body=this is body of email'); //mail
+        launch('https://typicaldesktop.com/'); //open website
+
+     but for this we have to click on enter.
