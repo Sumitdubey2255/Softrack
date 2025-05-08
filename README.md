@@ -101,9 +101,9 @@ This project helped deepen my knowledge in:
 
 You can see screenshots under each title:
 
-| Login Page with OTP | Admin Dashboard  | Distributor Panel | Software Management |
-| ------------------- | ---------------- | ----------------- | ------------------- |
-| *(Insert image)*    | *(Insert image)* | *(Insert image)*  | *(Insert image)*    |
+| Splash Screen | Login Page with OTP | Home Screen | Distributor Panel | Notification Panel | Software Management |
+| ------------- | ------------------- | ---------------- | ----------------- | ------------------ | ------------------- |
+| ![Splash](assets/screenshots/Splash.jpg) | ![Login](assets/screenshots/Login.jpg) | ![Home](assets/screenshots/Home.jpg) | ![Distributors](assets/screenshots/Distributors.jpg) | ![Notifications](assets/screenshots/Notification.jpg) | ![Softwares](assets/screenshots/Softwares.jpg) |
 
 
 
